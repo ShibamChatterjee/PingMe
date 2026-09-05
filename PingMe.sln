@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PingMe.Api", "PingMe.Api\PingMe.Api.csproj", "{48D6C5C5-889E-4AC1-9AC8-BFEA6881486B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PingMe.Core", "PingMe.Core\PingMe.Core.csproj", "{C3AD6A60-D7A2-479A-A0DA-838AC8C70860}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PingMe.Infrastructure", "PingMe.Infrastructure\PingMe.Infrastructure.csproj", "{542A4D92-A793-4CCC-876B-C82B1DD54C76}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{48D6C5C5-889E-4AC1-9AC8-BFEA6881486B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{48D6C5C5-889E-4AC1-9AC8-BFEA6881486B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{48D6C5C5-889E-4AC1-9AC8-BFEA6881486B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{48D6C5C5-889E-4AC1-9AC8-BFEA6881486B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C3AD6A60-D7A2-479A-A0DA-838AC8C70860}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C3AD6A60-D7A2-479A-A0DA-838AC8C70860}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C3AD6A60-D7A2-479A-A0DA-838AC8C70860}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C3AD6A60-D7A2-479A-A0DA-838AC8C70860}.Release|Any CPU.Build.0 = Release|Any CPU
+		{542A4D92-A793-4CCC-876B-C82B1DD54C76}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{542A4D92-A793-4CCC-876B-C82B1DD54C76}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{542A4D92-A793-4CCC-876B-C82B1DD54C76}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{542A4D92-A793-4CCC-876B-C82B1DD54C76}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

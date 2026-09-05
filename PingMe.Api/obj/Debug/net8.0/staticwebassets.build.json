@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "Hash": "xylduKnGhiVPjkGZYzpGKM6y8fbbb771DfEwVTq5yiA=",
+  "Source": "PingMe.Api",
+  "BasePath": "_content/PingMe.Api",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": []
+}

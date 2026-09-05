@@ -1,0 +1,12 @@
+/Users/shibamchatterjee/PingMe/PingMe.Core/bin/Debug/net8.0/PingMe.Core.deps.json
+/Users/shibamchatterjee/PingMe/PingMe.Core/bin/Debug/net8.0/PingMe.Core.dll
+/Users/shibamchatterjee/PingMe/PingMe.Core/bin/Debug/net8.0/PingMe.Core.pdb
+/Users/shibamchatterjee/PingMe/PingMe.Core/obj/Debug/net8.0/PingMe.Core.csproj.AssemblyReference.cache
+/Users/shibamchatterjee/PingMe/PingMe.Core/obj/Debug/net8.0/PingMe.Core.GeneratedMSBuildEditorConfig.editorconfig
+/Users/shibamchatterjee/PingMe/PingMe.Core/obj/Debug/net8.0/PingMe.Core.AssemblyInfoInputs.cache
+/Users/shibamchatterjee/PingMe/PingMe.Core/obj/Debug/net8.0/PingMe.Core.AssemblyInfo.cs
+/Users/shibamchatterjee/PingMe/PingMe.Core/obj/Debug/net8.0/PingMe.Core.csproj.CoreCompileInputs.cache
+/Users/shibamchatterjee/PingMe/PingMe.Core/obj/Debug/net8.0/PingMe.Core.dll
+/Users/shibamchatterjee/PingMe/PingMe.Core/obj/Debug/net8.0/refint/PingMe.Core.dll
+/Users/shibamchatterjee/PingMe/PingMe.Core/obj/Debug/net8.0/PingMe.Core.pdb
+/Users/shibamchatterjee/PingMe/PingMe.Core/obj/Debug/net8.0/ref/PingMe.Core.dll

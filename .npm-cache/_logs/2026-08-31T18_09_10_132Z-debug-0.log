@@ -1,0 +1,17 @@
+0 verbose cli /usr/local/bin/node /usr/local/bin/npm
+1 info using npm@10.9.2
+2 info using node@v22.16.0
+3 silly config load:file:/usr/local/lib/node_modules/npm/npmrc
+4 silly config load:file:/Users/shibamchatterjee/.npmrc
+5 silly config load:file:/usr/local/etc/npmrc
+6 verbose title npm config list
+7 verbose argv "config" "list" "--json"
+8 verbose logfile logs-max:10 dir:/Users/shibamchatterjee/PingMe/.npm-cache/_logs/2026-08-31T18_09_10_132Z-
+9 verbose logfile /Users/shibamchatterjee/PingMe/.npm-cache/_logs/2026-08-31T18_09_10_132Z-debug-0.log
+10 silly logfile done cleaning log files
+11 verbose cwd /Users/shibamchatterjee/PingMe
+12 verbose os Darwin 25.5.0
+13 verbose node v22.16.0
+14 verbose npm  v10.9.2
+15 verbose exit 0
+16 info ok

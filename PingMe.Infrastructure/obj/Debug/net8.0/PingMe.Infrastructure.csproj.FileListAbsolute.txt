@@ -1,0 +1,15 @@
+/Users/shibamchatterjee/PingMe/PingMe.Infrastructure/bin/Debug/net8.0/PingMe.Infrastructure.deps.json
+/Users/shibamchatterjee/PingMe/PingMe.Infrastructure/bin/Debug/net8.0/PingMe.Infrastructure.dll
+/Users/shibamchatterjee/PingMe/PingMe.Infrastructure/bin/Debug/net8.0/PingMe.Infrastructure.pdb
+/Users/shibamchatterjee/PingMe/PingMe.Infrastructure/bin/Debug/net8.0/PingMe.Core.dll
+/Users/shibamchatterjee/PingMe/PingMe.Infrastructure/bin/Debug/net8.0/PingMe.Core.pdb
+/Users/shibamchatterjee/PingMe/PingMe.Infrastructure/obj/Debug/net8.0/PingMe.Infrastructure.csproj.AssemblyReference.cache
+/Users/shibamchatterjee/PingMe/PingMe.Infrastructure/obj/Debug/net8.0/PingMe.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+/Users/shibamchatterjee/PingMe/PingMe.Infrastructure/obj/Debug/net8.0/PingMe.Infrastructure.AssemblyInfoInputs.cache
+/Users/shibamchatterjee/PingMe/PingMe.Infrastructure/obj/Debug/net8.0/PingMe.Infrastructure.AssemblyInfo.cs
+/Users/shibamchatterjee/PingMe/PingMe.Infrastructure/obj/Debug/net8.0/PingMe.Infrastructure.csproj.CoreCompileInputs.cache
+/Users/shibamchatterjee/PingMe/PingMe.Infrastructure/obj/Debug/net8.0/PingMe.I.9F8286FB.Up2Date
+/Users/shibamchatterjee/PingMe/PingMe.Infrastructure/obj/Debug/net8.0/PingMe.Infrastructure.dll
+/Users/shibamchatterjee/PingMe/PingMe.Infrastructure/obj/Debug/net8.0/refint/PingMe.Infrastructure.dll
+/Users/shibamchatterjee/PingMe/PingMe.Infrastructure/obj/Debug/net8.0/PingMe.Infrastructure.pdb
+/Users/shibamchatterjee/PingMe/PingMe.Infrastructure/obj/Debug/net8.0/ref/PingMe.Infrastructure.dll

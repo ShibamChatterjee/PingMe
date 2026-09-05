@@ -1,0 +1,41 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: PingMe.Api/Dockerfile
+    container_name: pingme-api
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - MongoDB__ConnectionString=mongodb://mongo:27017
+      - MongoDB__Database=pingme
+      - Redis__ConnectionString=redis:6379
+      - Jwt__Secret=ifej398r398ckcok0-2ijwicn009e0nfeji8504kov-eojvoeko2fskk
+      - Jwt__Issuer=PingMe
+      - Jwt__Audience=PingMeUsers
+      - Jwt__ExpiryMinutes=60
+    depends_on:
+      - mongo
+      - redis
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    container_name: pingme-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: pingme-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
