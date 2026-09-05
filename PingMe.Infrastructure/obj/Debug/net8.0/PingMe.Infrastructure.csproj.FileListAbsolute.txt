@@ -13,3 +13,4 @@
 /Users/shibamchatterjee/PingMe/PingMe.Infrastructure/obj/Debug/net8.0/refint/PingMe.Infrastructure.dll
 /Users/shibamchatterjee/PingMe/PingMe.Infrastructure/obj/Debug/net8.0/PingMe.Infrastructure.pdb
 /Users/shibamchatterjee/PingMe/PingMe.Infrastructure/obj/Debug/net8.0/ref/PingMe.Infrastructure.dll
+/Users/shibamchatterjee/PingMe/PingMe.Infrastructure/obj/Debug/net8.0/PingMe.Infrastructure.sourcelink.json

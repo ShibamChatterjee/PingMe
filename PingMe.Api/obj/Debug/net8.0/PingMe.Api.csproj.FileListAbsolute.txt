@@ -71,3 +71,4 @@
 /Users/shibamchatterjee/PingMe/PingMe.Api/bin/Debug/net8.0/System.CodeDom.dll
 /Users/shibamchatterjee/PingMe/PingMe.Api/bin/Debug/net8.0/System.Management.dll
 /Users/shibamchatterjee/PingMe/PingMe.Api/bin/Debug/net8.0/runtimes/win/lib/net7.0/System.Management.dll
+/Users/shibamchatterjee/PingMe/PingMe.Api/obj/Debug/net8.0/PingMe.Api.sourcelink.json

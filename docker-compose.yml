@@ -15,9 +15,24 @@ services:
       - Jwt__Issuer=PingMe
       - Jwt__Audience=PingMeUsers
       - Jwt__ExpiryMinutes=60
+      - CorsOrigins=http://localhost:3000,http://localhost:5173
     depends_on:
       - mongo
       - redis
+    restart: unless-stopped
+
+  client:
+    build:
+      context: ./PingMe.Client
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://localhost:8080/api
+        - VITE_HUB_URL=http://localhost:8080/hubs/chat
+    container_name: pingme-client
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
     restart: unless-stopped
 
   mongo:

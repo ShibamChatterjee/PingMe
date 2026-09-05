@@ -379,7 +379,7 @@ export const api = {
   uploadAvatar: async (token: string, file: File) => {
     const formData = new FormData();
     formData.append("file", file);
-    const res = await fetch("http://localhost:5001/api/users/avatar", {
+    const res = await fetch(`${API_BASE}/users/avatar`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: formData,

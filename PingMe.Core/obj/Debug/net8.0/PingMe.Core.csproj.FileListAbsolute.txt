@@ -10,3 +10,4 @@
 /Users/shibamchatterjee/PingMe/PingMe.Core/obj/Debug/net8.0/refint/PingMe.Core.dll
 /Users/shibamchatterjee/PingMe/PingMe.Core/obj/Debug/net8.0/PingMe.Core.pdb
 /Users/shibamchatterjee/PingMe/PingMe.Core/obj/Debug/net8.0/ref/PingMe.Core.dll
+/Users/shibamchatterjee/PingMe/PingMe.Core/obj/Debug/net8.0/PingMe.Core.sourcelink.json

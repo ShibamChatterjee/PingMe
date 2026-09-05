@@ -128,10 +128,12 @@ builder.Services.AddSwaggerGen(c =>
 
 builder.Services.AddAuthorization();
 
-// ── CORS ─────────────────────────────────────────────────────────────────────
+var allowedOrigins = builder.Configuration["CorsOrigins"]?
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    ?? new[] { "http://localhost:5173", "http://localhost:3000", "http://localhost:8080" };
 
 builder.Services.AddCors(opts => opts.AddDefaultPolicy(p =>
-    p.WithOrigins("http://localhost:5173")
+    p.WithOrigins(allowedOrigins)
         .AllowAnyHeader()
         .AllowAnyMethod()
         .AllowCredentials()));
