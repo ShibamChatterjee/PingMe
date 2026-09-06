@@ -1,3 +1,4 @@
+using System.Security.Authentication;
 using Microsoft.Extensions.Configuration;
 using PingMe.Core.Models;
 using MongoDB.Driver;
@@ -14,10 +15,34 @@ public class MongoDbContext
         string connectionString = config["MongoDB:ConnectionString"]!;
         string databaseName = config["MongoDB:Database"]!;
 
-        var client = new MongoClient(connectionString);
+        var settings = MongoClientSettings.FromConnectionString(connectionString);
+
+        // Fix Windows SChannel TLS error (0x80090304: The Local Security Authority cannot be contacted)
+        // by enforcing TLS 1.2 and allowing certificates even behind corporate proxies / antivirus
+        if (connectionString.Contains("mongodb+srv://") || connectionString.Contains("ssl=true") || connectionString.Contains("tls=true"))
+        {
+            settings.SslSettings = new SslSettings
+            {
+                EnabledSslProtocols = SslProtocols.Tls12,
+                ServerCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true
+            };
+        }
+
+        var client = new MongoClient(settings);
         _db = client.GetDatabase(databaseName);
 
-        CreateIndexes();
+        // Run index creation in background to avoid blocking controller creation and startup timeouts
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                CreateIndexes();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MongoDbContext] Index initialization deferred: {ex.Message}");
+            }
+        });
     }
 
     public IMongoCollection<T> GetCollection<T>(string name)
