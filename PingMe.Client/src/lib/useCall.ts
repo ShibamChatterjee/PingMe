@@ -91,6 +91,7 @@ export function useCall(
   const screenStreamRef = useRef<MediaStream | null>(null);
   const remoteUserIdRef = useRef<string | null>(null);
   const chatIdRef = useRef<string | null>(null);
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const callStateRef = useRef(callState);
   callStateRef.current = callState;
 
@@ -100,6 +101,23 @@ export function useCall(
 
   const updateState = useCallback((patch: Partial<CallState>) => {
     setCallState(prev => ({ ...prev, ...patch }));
+  }, []);
+
+  const drainPendingCandidates = useCallback(async (pc: RTCPeerConnection) => {
+    if (!pc || !pc.remoteDescription) return;
+    const candidates = [...pendingCandidatesRef.current];
+    pendingCandidatesRef.current = [];
+    if (candidates.length > 0) {
+      console.log(`[WebRTC] Draining ${candidates.length} queued ICE candidate(s)`);
+      for (const cand of candidates) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(cand));
+          console.log("[WebRTC] Added queued ICE candidate successfully:", cand.candidate?.slice(0, 40));
+        } catch (err) {
+          console.warn("[WebRTC] Failed to add queued ICE candidate:", err);
+        }
+      }
+    }
   }, []);
 
   const createPeerConnection = useCallback((rtcConfig: RTCConfiguration): RTCPeerConnection => {
@@ -126,7 +144,10 @@ export function useCall(
 
     pc.ontrack = (e) => {
       console.log("[WebRTC] Remote track received:", e.track.kind, "readyState:", e.track.readyState);
-      // Use the first incoming stream (contains both audio + video tracks)
+      e.track.onunmute = () => {
+        console.log("[WebRTC] Remote track unmuted (audio/video flowing!):", e.track.kind);
+      };
+      // Use the incoming stream (contains both audio + video tracks)
       if (e.streams && e.streams[0]) {
         console.log("[WebRTC] Using stream from event, tracks:", e.streams[0].getTracks().map(t => `${t.kind}:${t.readyState}`));
         setRemoteStream(e.streams[0]);
@@ -142,11 +163,9 @@ export function useCall(
 
     pc.onconnectionstatechange = () => {
       console.log("[WebRTC] Connection state:", pc.connectionState);
-      if (
-        pc.connectionState === "disconnected" ||
-        pc.connectionState === "failed" ||
-        pc.connectionState === "closed"
-      ) {
+      // NOTE: "disconnected" is temporary and should not kill the call.
+      // Only "failed" or "closed" is terminal.
+      if (pc.connectionState === "failed" || pc.connectionState === "closed") {
         cleanupCall(false);
       }
     };
@@ -156,7 +175,11 @@ export function useCall(
 
   const getUserMedia = useCallback(async (type: CallType): Promise<MediaStream> => {
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
       video: type === "video" ? { width: 1280, height: 720 } : false,
     });
     localStreamRef.current = stream;
@@ -174,6 +197,7 @@ export function useCall(
     screenStreamRef.current = null;
     pcRef.current?.close();
     pcRef.current = null;
+    pendingCandidatesRef.current = [];
     remoteUserIdRef.current = null;
     chatIdRef.current = null;
     setLocalStream(null);
@@ -188,6 +212,7 @@ export function useCall(
 
   const startCall = useCallback(async (calleeUserId: string, chatId: string, type: CallType) => {
     if (!hubRef.current || !myUserId || callStateRef.current.status !== "idle") return;
+    pendingCandidatesRef.current = [];
     const member = getMember(calleeUserId);
     remoteUserIdRef.current = calleeUserId;
     chatIdRef.current = chatId;
@@ -223,6 +248,7 @@ export function useCall(
       const stream = await getUserMedia(callType);
       stream.getTracks().forEach(t => pc.addTrack(t, stream));
       await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(sdpOffer)));
+      await drainPendingCandidates(pc);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       await hubRef.current.invokeCall("AnswerCall", callerId, chatId, JSON.stringify(answer));
@@ -235,7 +261,7 @@ export function useCall(
       console.error("Failed to accept call:", err);
       cleanupCall(false);
     }
-  }, [callState.incomingCall, createPeerConnection, getUserMedia, getMember, updateState, cleanupCall]);
+  }, [callState.incomingCall, createPeerConnection, getUserMedia, drainPendingCandidates, getMember, updateState, cleanupCall]);
 
   const declineCall = useCallback(async () => {
     if (!hubRef.current || !callState.incomingCall) return;
@@ -304,6 +330,7 @@ export function useCall(
         hubRef.current?.invokeCall("BusyCall", payload.callerId, payload.chatId);
         return;
       }
+      pendingCandidatesRef.current = [];
       const member = getMember(payload.callerId);
       setCallState(prev => ({
         ...prev, status: "ringing", callType: payload.callType, chatId: payload.chatId,
@@ -320,17 +347,29 @@ export function useCall(
       const pc = pcRef.current;
       if (!pc) return;
       try {
+        console.log("[WebRTC] Callee answered, setting remote description");
         await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(payload.sdpAnswer)));
+        await drainPendingCandidates(pc);
         updateState({ status: "in-call" });
       } catch (err) { console.error("Failed to set remote description:", err); }
     });
 
     const offIce = hub.onCall("IceCandidate", async (raw) => {
       const payload = parsePayload<{ senderId: string; chatId: string; candidate: string }>(raw);
-      const pc = pcRef.current;
-      if (!pc) return;
-      try { await pc.addIceCandidate(new RTCIceCandidate(JSON.parse(payload.candidate))); }
-      catch (err) { console.warn("ICE candidate error:", err); }
+      try {
+        const candidateData: RTCIceCandidateInit = JSON.parse(payload.candidate);
+        if (!candidateData || !candidateData.candidate) return;
+        const pc = pcRef.current;
+        if (!pc || !pc.remoteDescription) {
+          console.log("[WebRTC] Queueing ICE candidate (no pc or remoteDescription yet):", candidateData.candidate.slice(0, 45));
+          pendingCandidatesRef.current.push(candidateData);
+        } else {
+          console.log("[WebRTC] Adding ICE candidate directly:", candidateData.candidate.slice(0, 45));
+          await pc.addIceCandidate(new RTCIceCandidate(candidateData));
+        }
+      } catch (err) {
+        console.warn("[WebRTC] ICE candidate error:", err);
+      }
     });
 
     const offDeclined = hub.onCall("CallDeclined", () => { cleanupCall(false); });
@@ -338,7 +377,7 @@ export function useCall(
     const offBusy = hub.onCall("CallBusy", () => { cleanupCall(false); });
 
     return () => { offIncoming(); offAnswered(); offIce(); offDeclined(); offEnded(); offBusy(); };
-  }, [hub, getMember, updateState, cleanupCall]);
+  }, [hub, getMember, updateState, cleanupCall, drainPendingCandidates]);
 
   useEffect(() => {
     return () => {

@@ -66,7 +66,11 @@ export function CallView({
     }
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = remoteStream;
-      remoteAudioRef.current.play().catch(err => console.warn("[CallView] Audio play() failed:", err));
+      remoteAudioRef.current.volume = 1.0;
+      remoteAudioRef.current.muted = false;
+      remoteAudioRef.current.play()
+        .then(() => console.log("[CallView] Remote audio play() succeeded"))
+        .catch(err => console.warn("[CallView] Audio play() failed:", err));
     }
   }, [remoteStream]);
 
@@ -80,13 +84,12 @@ export function CallView({
 
   return (
     <>
-      {/* Always-present hidden audio element — plays remote audio for ALL call types.
-          For video calls the <video> already plays audio, but this ensures audio-only calls work. */}
+      {/* Always-present audio element — plays remote audio for ALL call types without display:none throttling */}
       <audio
         ref={remoteAudioRef}
         autoPlay
         playsInline
-        style={{ display: "none" }}
+        style={{ position: "fixed", top: -9999, left: -9999, width: 1, height: 1, opacity: 0.001, pointerEvents: "none" }}
       />
 
       {/* ── Incoming ring banner ───────────────────────────────────────────── */}
@@ -203,6 +206,7 @@ export function CallView({
                 ref={remoteVideoRef}
                 autoPlay
                 playsInline
+                muted
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
             ) : (
