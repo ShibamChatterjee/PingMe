@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatHub } from "./hub";
+import { api } from "./api";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,41 +33,26 @@ export interface CallState {
   isScreenSharing: boolean;
 }
 
-// ── STUN + TURN config ────────────────────────────────────────────────────────
-// TURN servers are essential for calls across different networks (symmetric NAT).
-// STUN alone cannot establish media when both peers are behind restrictive NATs.
-
-const RTC_CONFIG: RTCConfiguration = {
+// ── STUN fallback (used when TURN credentials cannot be fetched) ──────────────
+const STUN_ONLY_CONFIG: RTCConfiguration = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-    // Free TURN servers from metered.ca (OpenRelay project)
-    {
-      urls: "stun:stun.relay.metered.ca:80",
-    },
-    {
-      urls: "turn:global.relay.metered.ca:80",
-      username: "e8dd65b92aee3e6b0ee6f582",
-      credential: "uFzkNhkLCKGHvBbR",
-    },
-    {
-      urls: "turn:global.relay.metered.ca:80?transport=tcp",
-      username: "e8dd65b92aee3e6b0ee6f582",
-      credential: "uFzkNhkLCKGHvBbR",
-    },
-    {
-      urls: "turn:global.relay.metered.ca:443",
-      username: "e8dd65b92aee3e6b0ee6f582",
-      credential: "uFzkNhkLCKGHvBbR",
-    },
-    {
-      urls: "turns:global.relay.metered.ca:443?transport=tcp",
-      username: "e8dd65b92aee3e6b0ee6f582",
-      credential: "uFzkNhkLCKGHvBbR",
-    },
   ],
-  iceTransportPolicy: "all", // Try direct first, fall back to relay
 };
+
+// Fetch TURN credentials from backend (which proxies metered.ca API)
+async function fetchRtcConfig(token: string): Promise<RTCConfiguration> {
+  try {
+    const iceServers = await api.getTurnCredentials(token);
+    console.log("[WebRTC] Fetched ICE servers:", iceServers.length, "entries", iceServers.map(s => typeof s.urls === 'string' ? s.urls : s.urls[0]));
+    if (iceServers.length === 0) return STUN_ONLY_CONFIG;
+    return { iceServers, iceTransportPolicy: "all" as RTCIceTransportPolicy };
+  } catch (err) {
+    console.warn("[WebRTC] Failed to fetch TURN credentials, using STUN-only fallback:", err);
+    return STUN_ONLY_CONFIG;
+  }
+}
 
 // ── Helper ───────────────────────────────────────────────────────────────────
 
@@ -81,7 +67,10 @@ export function useCall(
   hub: ChatHub | null,
   myUserId: string | null,
   getMember: (userId: string) => { username: string; avatarUrl?: string } | undefined,
+  token: string | null = null,
 ) {
+  const tokenRef = useRef<string | null>(token);
+  tokenRef.current = token;
   const [callState, setCallState] = useState<CallState>({
     status: "idle",
     callType: null,
@@ -113,9 +102,9 @@ export function useCall(
     setCallState(prev => ({ ...prev, ...patch }));
   }, []);
 
-  const createPeerConnection = useCallback((): RTCPeerConnection => {
+  const createPeerConnection = useCallback((rtcConfig: RTCConfiguration): RTCPeerConnection => {
     if (pcRef.current) pcRef.current.close();
-    const pc = new RTCPeerConnection(RTC_CONFIG);
+    const pc = new RTCPeerConnection(rtcConfig);
     pcRef.current = pc;
 
     pc.onicecandidate = (e) => {
@@ -208,7 +197,9 @@ export function useCall(
       incomingCall: null,
     });
     try {
-      const pc = createPeerConnection();
+      // Fetch fresh TURN credentials from backend before creating peer connection
+      const rtcConfig = tokenRef.current ? await fetchRtcConfig(tokenRef.current) : STUN_ONLY_CONFIG;
+      const pc = createPeerConnection(rtcConfig);
       const stream = await getUserMedia(type);
       stream.getTracks().forEach(t => pc.addTrack(t, stream));
       const offer = await pc.createOffer();
@@ -226,7 +217,9 @@ export function useCall(
     remoteUserIdRef.current = callerId;
     chatIdRef.current = chatId;
     try {
-      const pc = createPeerConnection();
+      // Fetch fresh TURN credentials from backend before creating peer connection
+      const rtcConfig = tokenRef.current ? await fetchRtcConfig(tokenRef.current) : STUN_ONLY_CONFIG;
+      const pc = createPeerConnection(rtcConfig);
       const stream = await getUserMedia(callType);
       stream.getTracks().forEach(t => pc.addTrack(t, stream));
       await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(sdpOffer)));

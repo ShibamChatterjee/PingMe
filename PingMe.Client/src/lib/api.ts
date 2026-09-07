@@ -675,6 +675,12 @@ export const api = {
         method: "DELETE",
       }, token),
   },
+
+  // ── TURN credentials (for WebRTC calls) ─────────────────────────────────
+  getTurnCredentials: (token: string) =>
+    apiFetch<Array<{ urls: string | string[]; username?: string; credential?: string }>>(
+      "/Turn/credentials", {}, token,
+    ),
 };
 
 export const NoteType = {

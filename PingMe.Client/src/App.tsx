@@ -138,7 +138,7 @@ export default function App() {
     toggleCamera,
     startScreenShare,
     stopScreenShare,
-  } = useCall(chat.hub, auth?.userId ?? null, getMember);
+  } = useCall(chat.hub, auth?.userId ?? null, getMember, auth?.token ?? null);
 
   const handleAuth = (data: AuthResult, privateKey: string | null, email: string) => {
     storeAuth(data);
