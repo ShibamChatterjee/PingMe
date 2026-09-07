@@ -15,7 +15,10 @@ export class ChatHub {
 
   constructor(token: string) {
     this.conn = new HubConnectionBuilder()
-      .withUrl(HUB_URL, { accessTokenFactory: () => token })
+      .withUrl(HUB_URL, {
+        accessTokenFactory: () => token,
+        headers: { "ngrok-skip-browser-warning": "true" },
+      })
       .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
       .configureLogging(LogLevel.Warning)
       .build();

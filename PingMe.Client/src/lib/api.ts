@@ -270,6 +270,7 @@ export function getAuthHeaders(
 ): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
     ...extraHeaders,
   };
   if (token) headers.Authorization = `Bearer ${token}`;
