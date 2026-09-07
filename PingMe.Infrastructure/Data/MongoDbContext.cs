@@ -21,7 +21,7 @@ public class MongoDbContext
         {
             settings.SslSettings = new SslSettings
             {
-                EnabledSslProtocols = SslProtocols.Tls12,
+                EnabledSslProtocols = SslProtocols.None,
                 CheckCertificateRevocation = false,
                 ServerCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true
             };
