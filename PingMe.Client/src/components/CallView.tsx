@@ -57,11 +57,16 @@ export function CallView({
 
   // Attach remote stream to <video> and to the always-present <audio> fallback
   useEffect(() => {
+    if (!remoteStream) return;
+    console.log("[CallView] Attaching remote stream, tracks:", remoteStream.getTracks().map(t => `${t.kind}:${t.readyState}:enabled=${t.enabled}`));
+
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current.play().catch(err => console.warn("[CallView] Video play() failed:", err));
     }
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = remoteStream;
+      remoteAudioRef.current.play().catch(err => console.warn("[CallView] Audio play() failed:", err));
     }
   }, [remoteStream]);
 

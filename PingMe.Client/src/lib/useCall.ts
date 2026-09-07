@@ -32,14 +32,40 @@ export interface CallState {
   isScreenSharing: boolean;
 }
 
-// ── STUN config ───────────────────────────────────────────────────────────────
+// ── STUN + TURN config ────────────────────────────────────────────────────────
+// TURN servers are essential for calls across different networks (symmetric NAT).
+// STUN alone cannot establish media when both peers are behind restrictive NATs.
 
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
+    // Free TURN servers from metered.ca (OpenRelay project)
+    {
+      urls: "stun:stun.relay.metered.ca:80",
+    },
+    {
+      urls: "turn:global.relay.metered.ca:80",
+      username: "e8dd65b92aee3e6b0ee6f582",
+      credential: "uFzkNhkLCKGHvBbR",
+    },
+    {
+      urls: "turn:global.relay.metered.ca:80?transport=tcp",
+      username: "e8dd65b92aee3e6b0ee6f582",
+      credential: "uFzkNhkLCKGHvBbR",
+    },
+    {
+      urls: "turn:global.relay.metered.ca:443",
+      username: "e8dd65b92aee3e6b0ee6f582",
+      credential: "uFzkNhkLCKGHvBbR",
+    },
+    {
+      urls: "turns:global.relay.metered.ca:443?transport=tcp",
+      username: "e8dd65b92aee3e6b0ee6f582",
+      credential: "uFzkNhkLCKGHvBbR",
+    },
   ],
+  iceTransportPolicy: "all", // Try direct first, fall back to relay
 };
 
 // ── Helper ───────────────────────────────────────────────────────────────────
@@ -94,13 +120,26 @@ export function useCall(
 
     pc.onicecandidate = (e) => {
       if (e.candidate && hubRef.current && remoteUserIdRef.current && chatIdRef.current) {
+        console.log("[WebRTC] Sending ICE candidate:", e.candidate.type, e.candidate.protocol, e.candidate.address);
         hubRef.current.invokeCall("SendIceCandidate", remoteUserIdRef.current, chatIdRef.current, JSON.stringify(e.candidate));
+      } else if (!e.candidate) {
+        console.log("[WebRTC] ICE gathering complete");
       }
     };
 
+    pc.onicegatheringstatechange = () => {
+      console.log("[WebRTC] ICE gathering state:", pc.iceGatheringState);
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log("[WebRTC] ICE connection state:", pc.iceConnectionState);
+    };
+
     pc.ontrack = (e) => {
+      console.log("[WebRTC] Remote track received:", e.track.kind, "readyState:", e.track.readyState);
       // Use the first incoming stream (contains both audio + video tracks)
       if (e.streams && e.streams[0]) {
+        console.log("[WebRTC] Using stream from event, tracks:", e.streams[0].getTracks().map(t => `${t.kind}:${t.readyState}`));
         setRemoteStream(e.streams[0]);
       } else {
         // Fallback: build stream from individual tracks
@@ -113,6 +152,7 @@ export function useCall(
     };
 
     pc.onconnectionstatechange = () => {
+      console.log("[WebRTC] Connection state:", pc.connectionState);
       if (
         pc.connectionState === "disconnected" ||
         pc.connectionState === "failed" ||
