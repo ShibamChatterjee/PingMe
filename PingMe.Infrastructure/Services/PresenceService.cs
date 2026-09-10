@@ -25,12 +25,13 @@ public class PresenceService : IPresenceService
         await _redis.KeyDeleteAsync(Key(userId));
     }
     
-    public async Task<List<string>> GetOnlineUsersAsync()
+    public Task<List<string>> GetOnlineUsersAsync()
     {
         var endpoints = _redis.Multiplexer.GetEndPoints();
         var server = _redis.Multiplexer.GetServer(endpoints.First());
 
         var keys = server.Keys(pattern: "user:online:*");
-        return keys.Select(k => k.ToString().Replace("user:online:", "")).ToList();
+        var list = keys.Select(k => k.ToString().Replace("user:online:", "")).ToList();
+        return Task.FromResult(list);
     }
 }

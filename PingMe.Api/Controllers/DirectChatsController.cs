@@ -51,14 +51,32 @@ public class DirectChatsController : ControllerBase
 
     /// <summary>Get message history for a specific DM.</summary>
     [HttpGet("{chatId}/messages")]
-    public async Task<IActionResult> GetMessages(string orgId, string chatId, [FromQuery] int limit = 50)
+    public async Task<IActionResult> GetMessages(string orgId, string chatId, [FromQuery] int limit = 50, [FromQuery] DateTime? before = null)
     {
-        // Verify access to the specific DM
-        var chat = await _chatService.GetByIdAsync(chatId, orgId, UserId);
-        if (chat is null) return NotFound("Chat not found or access denied.");
+        try
+        {
+            // Verify access to the specific DM (support both DM ID and TargetUserId)
+            var chat = await _chatService.GetByIdAsync(chatId, orgId, UserId);
+            if (chat is null)
+            {
+                // Fallback: in case chatId was passed as the other user's ID
+                try
+                {
+                    chat = await _chatService.GetOrCreateAsync(orgId, UserId, chatId);
+                }
+                catch
+                {
+                    // Ignore, chat will remain null and return NotFound below
+                }
+            }
 
-        var messages = await _messageService.GetHistoryAsync(orgId, chatId, UserId, limit);
-        return Ok(messages);
+            if (chat is null) return NotFound("Chat not found or access denied.");
+
+            var messages = await _messageService.GetHistoryAsync(orgId, chat.Id, UserId, limit, before);
+            return Ok(messages);
+        }
+        catch (UnauthorizedAccessException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message }); }
+        catch (Exception ex) { return StatusCode(StatusCodes.Status500InternalServerError, new { message = ex.Message }); }
     }
 }
 

@@ -72,6 +72,10 @@ public class MessageDto
     public string? SelfNonce { get; set; }
     public string Type { get; set; } = "text";
     public string Status { get; set; } = "sent";
+    public bool IsDeleted { get; set; }
+    public bool IsEdited { get; set; }
+    public DateTime? EditedAt { get; set; }
+    public Dictionary<string, List<string>> Reactions { get; set; } = new();
     public string? FileUrl { get; set; }
     public string? FileName { get; set; }
     public string? FileType { get; set; }
@@ -93,4 +97,31 @@ public class SendOrgMessageDto
     public string? FileName { get; set; }
     public string? FileType { get; set; }
     public long? FileSize { get; set; }
+}
+
+public class EditOrgMessageDto
+{
+    public string OrganizationId { get; set; } = default!;
+    public string ChatId { get; set; } = default!;
+    public string MessageId { get; set; } = default!;
+    public string Ciphertext { get; set; } = default!;
+    public string Nonce { get; set; } = default!;
+    public string? SelfCiphertext { get; set; }
+    public string? SelfNonce { get; set; }
+}
+
+public class ReactMessageDto
+{
+    public string OrganizationId { get; set; } = default!;
+    public string ChatId { get; set; } = default!;
+    public string MessageId { get; set; } = default!;
+    public string Emoji { get; set; } = default!;
+}
+
+public class DeleteMessageDto
+{
+    public string OrganizationId { get; set; } = default!;
+    public string ChatId { get; set; } = default!;
+    public string MessageId { get; set; } = default!;
+    public bool DeleteForEveryone { get; set; }
 }

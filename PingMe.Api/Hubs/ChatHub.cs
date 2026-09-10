@@ -175,6 +175,103 @@ public class ChatHub : Hub
         }
     }
 
+    /// <summary>
+    /// Edits an existing message's ciphertext.
+    /// </summary>
+    public async Task EditMessage(EditOrgMessageDto dto)
+    {
+        var senderId = Context.User!.FindFirstValue(ClaimTypes.NameIdentifier)!;
+
+        var message = await _messageService.EditAsync(
+            dto.OrganizationId,
+            dto.ChatId,
+            dto.MessageId,
+            senderId,
+            dto.Ciphertext,
+            dto.Nonce,
+            dto.SelfCiphertext,
+            dto.SelfNonce);
+
+        if (message is not null)
+        {
+            var groupName = SignalRGroupName(dto.OrganizationId, dto.ChatId);
+            await Clients.Group(groupName).SendAsync("MessageEdited", new
+            {
+                MessageId = message.Id,
+                ChatId = message.ChatId,
+                Ciphertext = message.Ciphertext,
+                Nonce = message.Nonce,
+                SelfCiphertext = message.SelfCiphertext,
+                SelfNonce = message.SelfNonce,
+                IsEdited = message.IsEdited,
+                EditedAt = message.EditedAt
+            });
+        }
+    }
+
+    /// <summary>
+    /// Deletes a message (for everyone or just for the requesting user).
+    /// </summary>
+    public async Task DeleteMessage(DeleteMessageDto dto)
+    {
+        var requesterId = Context.User!.FindFirstValue(ClaimTypes.NameIdentifier)!;
+
+        var message = await _messageService.DeleteAsync(
+            dto.OrganizationId,
+            dto.ChatId,
+            dto.MessageId,
+            requesterId,
+            dto.DeleteForEveryone);
+
+        if (message is not null)
+        {
+            var groupName = SignalRGroupName(dto.OrganizationId, dto.ChatId);
+            if (dto.DeleteForEveryone)
+            {
+                await Clients.Group(groupName).SendAsync("MessageDeleted", new
+                {
+                    MessageId = dto.MessageId,
+                    ChatId = dto.ChatId,
+                    DeleteForEveryone = true,
+                    UserId = requesterId
+                });
+            }
+            else
+            {
+                await Clients.Caller.SendAsync("MessageDeleted", new
+                {
+                    MessageId = dto.MessageId,
+                    ChatId = dto.ChatId,
+                    DeleteForEveryone = false,
+                    UserId = requesterId
+                });
+            }
+        }
+    }
+
+    /// <summary>
+    /// Toggles an emoji reaction on a message.
+    /// </summary>
+    public async Task ReactToMessage(ReactMessageDto dto)
+    {
+        var requesterId = Context.User!.FindFirstValue(ClaimTypes.NameIdentifier)!;
+
+        var reactions = await _messageService.ReactAsync(
+            dto.OrganizationId,
+            dto.ChatId,
+            dto.MessageId,
+            requesterId,
+            dto.Emoji);
+
+        var groupName = SignalRGroupName(dto.OrganizationId, dto.ChatId);
+        await Clients.Group(groupName).SendAsync("MessageReactionUpdated", new
+        {
+            MessageId = dto.MessageId,
+            ChatId = dto.ChatId,
+            Reactions = reactions
+        });
+    }
+
     // Typing indicators — org-scoped
     public async Task StartTyping(string orgId, string chatId)
     {

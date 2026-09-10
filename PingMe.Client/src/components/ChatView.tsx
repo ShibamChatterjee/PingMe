@@ -23,6 +23,11 @@ import {
   Tooltip,
   Popover,
   Chip,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
 
 import AddIcon from "@mui/icons-material/Add";
@@ -31,6 +36,9 @@ import SendIcon from "@mui/icons-material/Send";
 import CloseIcon from "@mui/icons-material/Close";
 import DescriptionIcon from "@mui/icons-material/Description";
 import VideocamIcon from "@mui/icons-material/Videocam";
+import CallIcon from "@mui/icons-material/Call";
+import CallMissedIcon from "@mui/icons-material/CallMissed";
+import PhoneDisabledIcon from "@mui/icons-material/PhoneDisabled";
 import CheckIcon from "@mui/icons-material/Check";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import ImageIcon from "@mui/icons-material/Image";
@@ -49,6 +57,10 @@ import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
 import FormatListNumberedIcon from "@mui/icons-material/FormatListNumbered";
 import FormatQuoteIcon from "@mui/icons-material/FormatQuote";
 import InsertLinkIcon from "@mui/icons-material/InsertLink";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import AddReactionIcon from "@mui/icons-material/AddReaction";
+import BlockIcon from "@mui/icons-material/Block";
 
 const TextFieldAny = TextField as any;
 
@@ -64,11 +76,18 @@ interface Props {
   onSend: (content: string) => void;
   onSendFile: (file: File, caption: string) => void;
   onTyping: (typing: boolean) => void;
+  onEditMessage?: (messageId: string, newContent: string) => void;
+  onDeleteMessage?: (messageId: string, deleteForEveryone: boolean) => void;
+  onReactMessage?: (messageId: string, emoji: string) => void;
   onOpenProfile?: (userId: string) => void;
   onStartCall?: (type: "audio" | "video") => void;
   onStartScreenShare?: () => void;
   callActive?: boolean;
   onOpenTicket?: (ticketNumber: string) => void;
+  hasMoreOlder?: boolean;
+  loadingOlder?: boolean;
+  onLoadOlder?: () => void;
+  onBack?: () => void;
 }
 
 type GroupItem =
@@ -99,11 +118,18 @@ export function ChatView({
   onSend,
   onSendFile,
   onTyping,
+  onEditMessage,
+  onDeleteMessage,
+  onReactMessage,
   onOpenProfile,
   onStartCall,
   onStartScreenShare,
   callActive = false,
   onOpenTicket,
+  hasMoreOlder = false,
+  loadingOlder = false,
+  onLoadOlder,
+  onBack,
 }: Props) {
   const [input, setInput] = useState("");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -145,9 +171,61 @@ export function ChatView({
     };
   };
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const prevActiveChatIdRef = useRef<string | null>(null);
+  const prevMessagesLengthRef = useRef<number>(0);
+  const prevFirstMsgIdRef = useRef<string | null>(null);
+  const prevScrollHeightRef = useRef<number>(0);
+  const isPrependingOlderRef = useRef(false);
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+    const currentChatId = activeChat ? activeChat.chat.id : null;
+    const isChatSwitched = currentChatId !== prevActiveChatIdRef.current;
+    prevActiveChatIdRef.current = currentChatId;
+
+    if (isChatSwitched) {
+      prevMessagesLengthRef.current = messages.length;
+      prevFirstMsgIdRef.current = messages[0]?.id ?? null;
+      isPrependingOlderRef.current = false;
+      requestAnimationFrame(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "auto" });
+      });
+      return;
+    }
+
+    if (isPrependingOlderRef.current && scrollContainerRef.current) {
+      const el = scrollContainerRef.current;
+      const newScrollHeight = el.scrollHeight;
+      const heightDiff = newScrollHeight - prevScrollHeightRef.current;
+      el.scrollTop += heightDiff;
+      isPrependingOlderRef.current = false;
+      prevMessagesLengthRef.current = messages.length;
+      prevFirstMsgIdRef.current = messages[0]?.id ?? null;
+      return;
+    }
+
+    if (scrollContainerRef.current) {
+      const el = scrollContainerRef.current;
+      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
+      if (isNearBottom) {
+        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+
+    prevMessagesLengthRef.current = messages.length;
+    prevFirstMsgIdRef.current = messages[0]?.id ?? null;
+  }, [messages, activeChat]);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el || loadingOlder || !hasMoreOlder || !onLoadOlder) return;
+
+    if (el.scrollTop < 80) {
+      isPrependingOlderRef.current = true;
+      prevScrollHeightRef.current = el.scrollHeight;
+      onLoadOlder();
+    }
+  }, [loadingOlder, hasMoreOlder, onLoadOlder]);
 
   const inputElRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -352,6 +430,7 @@ export function ChatView({
         onStartCall={onStartCall}
         onStartScreenShare={onStartScreenShare}
         callActive={callActive}
+        onBack={onBack}
         onToggleMemberPanel={() => {
           if (activeChat?.kind === "dm") {
             onOpenProfile?.((activeChat.chat as any).otherUserId);
@@ -367,7 +446,43 @@ export function ChatView({
       />
 
       {/* Messages Scroll Area */}
-      <Box sx={{ flexGrow: 1, overflowY: "auto", px: { xs: 2, md: 3 }, py: 2, display: "flex", flexDirection: "column", gap: 1.25 }}>
+      <Box
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        sx={{ flexGrow: 1, overflowY: "auto", px: { xs: 1.5, sm: 2, md: 3 }, py: 2, display: "flex", flexDirection: "column", gap: 1.25 }}
+      >
+        {/* Loading / Load More Older Messages Header */}
+        {loadingOlder && (
+          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 1.5, gap: 1 }}>
+            <CircularProgress size={18} thickness={5} />
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+              Loading older messages...
+            </Typography>
+          </Box>
+        )}
+        {hasMoreOlder && !loadingOlder && (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 1 }}>
+            <Chip
+              label="↑ Load older messages"
+              size="small"
+              onClick={() => {
+                if (scrollContainerRef.current) {
+                  isPrependingOlderRef.current = true;
+                  prevScrollHeightRef.current = scrollContainerRef.current.scrollHeight;
+                }
+                onLoadOlder?.();
+              }}
+              sx={{
+                cursor: "pointer",
+                fontWeight: 600,
+                fontSize: "11px",
+                bgcolor: "action.hover",
+                "&:hover": { bgcolor: "action.selected" },
+              }}
+            />
+          </Box>
+        )}
+
         {groupedItems.length === 0 ? (
           <Box sx={{ flexGrow: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", opacity: 0.6, p: 4, textAlign: "center" }}>
             <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.5 }}>
@@ -406,9 +521,14 @@ export function ChatView({
                 msg={item.msg}
                 userId={userId}
                 sender={resolveSender(item.msg.senderId, item.msg.senderName)}
+                resolveMemberName={(uid) => resolveSender(uid).name}
                 onOpenProfile={onOpenProfile}
-                onReactEmoji={(emoji) => setInput((prev) => prev + emoji)}
                 onOpenTicket={onOpenTicket}
+                onStartCall={onStartCall}
+                callActive={callActive}
+                onEditMessage={onEditMessage}
+                onDeleteMessage={onDeleteMessage}
+                onReactMessage={onReactMessage}
               />
             ),
           )
@@ -418,11 +538,11 @@ export function ChatView({
 
       {/* File preview strip */}
       {pendingFile && (
-        <Box sx={{ p: 2, borderTop: "1px solid", borderColor: "divider", bgcolor: "background.paper", display: "flex", alignItems: "center", gap: 2 }}>
+        <Box sx={{ p: { xs: 1.25, sm: 2 }, borderTop: "1px solid", borderColor: "divider", bgcolor: "background.paper", display: "flex", alignItems: "center", gap: { xs: 1, sm: 2 }, flexWrap: "wrap" }}>
           {previewUrl ? (
-            <Box component="img" src={previewUrl} alt="preview" sx={{ width: 48, height: 48, borderRadius: 1.5, objectFit: "cover", border: "1px solid", borderColor: "divider" }} />
+            <Box component="img" src={previewUrl} alt="preview" sx={{ width: 44, height: 44, borderRadius: 1.5, objectFit: "cover", border: "1px solid", borderColor: "divider" }} />
           ) : (
-            <Box sx={{ width: 48, height: 48, borderRadius: 1.5, bgcolor: "action.selected", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid", borderColor: "divider", color: "text.secondary" }}>
+            <Box sx={{ width: 44, height: 44, borderRadius: 1.5, bgcolor: "action.selected", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid", borderColor: "divider", color: "text.secondary" }}>
               {pendingFile.type === "application/pdf" ? (
                 <DescriptionIcon color="error" />
               ) : pendingFile.type.startsWith("video/") ? (
@@ -447,36 +567,39 @@ export function ChatView({
             }}
             disabled={uploading}
             size="small"
-            sx={{ width: 260 }}
+            sx={{ width: { xs: "100%", sm: 260 }, order: { xs: 3, sm: 0 } }}
           />
 
-          <IconButton
-            onClick={sendFile}
-            disabled={uploading || connStatus !== "connected"}
-            color="primary"
-            sx={{ border: "1px solid", borderColor: "divider" }}
-          >
-            {uploading ? (
-              <CircularProgress size={20} color="inherit" />
-            ) : (
-              <SendIcon sx={{ fontSize: 18 }} />
-            )}
-          </IconButton>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, ml: "auto" }}>
+            <IconButton
+              onClick={sendFile}
+              disabled={uploading || connStatus !== "connected"}
+              color="primary"
+              size="small"
+              sx={{ border: "1px solid", borderColor: "divider" }}
+            >
+              {uploading ? (
+                <CircularProgress size={18} color="inherit" />
+              ) : (
+                <SendIcon sx={{ fontSize: 16 }} />
+              )}
+            </IconButton>
 
-          <IconButton onClick={cancelFile} disabled={uploading} sx={{ border: "1px solid", borderColor: "divider" }}>
-            <CloseIcon sx={{ fontSize: 18 }} />
-          </IconButton>
+            <IconButton onClick={cancelFile} disabled={uploading} size="small" sx={{ border: "1px solid", borderColor: "divider" }}>
+              <CloseIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Box>
         </Box>
       )}
 
       {fileError && (
-        <Alert severity="error" sx={{ mx: 3, mb: 1 }}>
+        <Alert severity="error" sx={{ mx: { xs: 1.5, sm: 3 }, mb: 1 }}>
           {fileError}
         </Alert>
       )}
 
       {/* Input container with Slack-style formatting toolbar */}
-      <Box sx={{ p: 2, borderTop: "1px solid", borderColor: "divider", bgcolor: "background.paper" }}>
+      <Box sx={{ p: { xs: 1, sm: 1.5, md: 2 }, borderTop: "1px solid", borderColor: "divider", bgcolor: "background.paper" }}>
         <input ref={fileInputRef} type="file" accept={ACCEPT_DOCS} style={{ display: "none" }} onChange={handleFileChange} />
         <input ref={imageInputRef} type="file" accept={ACCEPT_IMAGES} style={{ display: "none" }} onChange={handleFileChange} />
         <input ref={videoInputRef} type="file" accept={ACCEPT_VIDEOS} style={{ display: "none" }} onChange={handleFileChange} />
@@ -794,28 +917,252 @@ export function ChatView({
   );
 }
 
+// ── Call Message Formatting ──
+function formatCallDuration(sec: number): string {
+  if (!sec || sec <= 0) return "< 1 min";
+  const hours = Math.floor(sec / 3600);
+  const minutes = Math.floor((sec % 3600) / 60);
+  const seconds = sec % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`;
+  }
+  if (minutes > 0) {
+    return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  }
+  return `${seconds}s`;
+}
+
+interface CallInfo {
+  callType: "audio" | "video";
+  status: "completed" | "missed" | "declined" | "busy";
+  duration: number;
+}
+
+function parseCallInfo(content?: string): CallInfo {
+  if (!content) {
+    return { callType: "audio", status: "completed", duration: 0 };
+  }
+  try {
+    const data = JSON.parse(content);
+    return {
+      callType: data.callType === "video" ? "video" : "audio",
+      status: ["completed", "missed", "declined", "busy"].includes(data.status) ? data.status : "completed",
+      duration: typeof data.duration === "number" ? data.duration : 0,
+    };
+  } catch {
+    return { callType: "audio", status: "completed", duration: 0 };
+  }
+}
+
+// ── CallMessageCard Component ──
+function CallMessageCard({
+  msg,
+  isMe,
+  onStartCall,
+  callActive,
+}: {
+  msg: ChatMessage;
+  isMe: boolean;
+  onStartCall?: (type: "audio" | "video") => void;
+  callActive?: boolean;
+}) {
+  const { callType, status, duration } = parseCallInfo(msg.content);
+  const isVideo = callType === "video";
+  const isMissedAlert = status === "missed" && !isMe;
+
+  let title = "";
+  let subtitle = "";
+  let buttonText = isMe ? "Call again" : "Call back";
+  let badgeIcon = <CallIcon sx={{ fontSize: 20, color: "#10b981" }} />;
+  let badgeBg = "rgba(16, 185, 129, 0.12)";
+
+  if (status === "missed") {
+    if (isMe) {
+      title = `Unanswered ${isVideo ? "video" : "voice"} call`;
+      subtitle = "No answer";
+      badgeIcon = <CallMissedIcon sx={{ fontSize: 20, color: "text.secondary" }} />;
+      badgeBg = "action.hover";
+    } else {
+      title = `Missed ${isVideo ? "video" : "voice"} call`;
+      subtitle = "Missed call";
+      badgeIcon = <CallMissedIcon sx={{ fontSize: 20, color: "#ef4444" }} />;
+      badgeBg = "rgba(239, 68, 68, 0.12)";
+    }
+  } else if (status === "completed") {
+    title = `${isMe ? "Outgoing" : "Incoming"} ${isVideo ? "video" : "voice"} call`;
+    subtitle = `Duration: ${formatCallDuration(duration)}`;
+    badgeIcon = isVideo ? (
+      <VideocamIcon sx={{ fontSize: 20, color: "#10b981" }} />
+    ) : (
+      <CallIcon sx={{ fontSize: 20, color: "#10b981" }} />
+    );
+    badgeBg = "rgba(16, 185, 129, 0.12)";
+  } else if (status === "declined") {
+    title = `Declined ${isVideo ? "video" : "voice"} call`;
+    subtitle = isMe ? "Call declined by recipient" : "Declined";
+    badgeIcon = <PhoneDisabledIcon sx={{ fontSize: 20, color: "#f59e0b" }} />;
+    badgeBg = "rgba(245, 158, 11, 0.12)";
+  } else if (status === "busy") {
+    title = `${isVideo ? "Video" : "Voice"} call • Busy`;
+    subtitle = "Recipient was busy";
+    badgeIcon = <PhoneDisabledIcon sx={{ fontSize: 20, color: "#f59e0b" }} />;
+    badgeBg = "rgba(245, 158, 11, 0.12)";
+  }
+
+  return (
+    <Box
+      sx={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 2.5,
+        mt: 0.5,
+        py: 1,
+        px: 1.75,
+        borderRadius: "10px",
+        bgcolor: isMissedAlert ? "rgba(239, 68, 68, 0.04)" : "action.hover",
+        border: "1px solid",
+        borderColor: isMissedAlert ? "rgba(239, 68, 68, 0.3)" : "divider",
+        minWidth: { xs: 0, sm: 300 },
+        maxWidth: { xs: "100%", sm: 420 },
+        width: { xs: "100%", sm: "auto" },
+        transition: "all 0.15s ease",
+        "&:hover": {
+          borderColor: isMissedAlert ? "error.main" : "primary.main",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+        },
+      }}
+    >
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
+        <Box
+          sx={{
+            width: 38,
+            height: 38,
+            borderRadius: "50%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            bgcolor: badgeBg,
+            flexShrink: 0,
+          }}
+        >
+          {badgeIcon}
+        </Box>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 700,
+              fontSize: "13.5px",
+              color: isMissedAlert ? "error.main" : "text.primary",
+              lineHeight: 1.25,
+            }}
+          >
+            {title}
+          </Typography>
+          <Typography
+            variant="caption"
+            sx={{
+              fontSize: "12px",
+              color: isMissedAlert ? "error.dark" : "text.secondary",
+              fontWeight: isMissedAlert ? 600 : 400,
+              display: "block",
+              mt: 0.25,
+            }}
+          >
+            {subtitle}
+          </Typography>
+        </Box>
+      </Box>
+
+      <Tooltip title={callActive ? "Call currently in progress" : buttonText}>
+        <span>
+          <Button
+            size="small"
+            variant="outlined"
+            disabled={callActive}
+            onClick={(e) => {
+              e.stopPropagation();
+              onStartCall?.(callType);
+            }}
+            startIcon={
+              isVideo ? (
+                <VideocamIcon sx={{ fontSize: 16 }} />
+              ) : (
+                <CallIcon sx={{ fontSize: 16 }} />
+              )
+            }
+            sx={{
+              borderRadius: "20px",
+              textTransform: "none",
+              fontWeight: 700,
+              fontSize: "12px",
+              py: 0.4,
+              px: 1.25,
+              borderColor: isMissedAlert ? "error.main" : "divider",
+              color: isMissedAlert ? "error.main" : "text.primary",
+              bgcolor: "background.paper",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+              "&:hover": {
+                bgcolor: isMissedAlert ? "rgba(239, 68, 68, 0.08)" : "action.selected",
+                borderColor: isMissedAlert ? "error.dark" : "primary.main",
+              },
+            }}
+          >
+            {buttonText}
+          </Button>
+        </span>
+      </Tooltip>
+    </Box>
+  );
+}
+
 // ── CleanMessageRow: Official Slack Document-style Message Row ──
 function CleanMessageRow({
   msg,
   userId,
   sender,
+  resolveMemberName,
   onOpenProfile,
-  onReactEmoji,
   onOpenTicket,
+  onStartCall,
+  callActive,
+  onEditMessage,
+  onDeleteMessage,
+  onReactMessage,
 }: {
   msg: ChatMessage;
   userId: string;
   sender: { name: string; avatarUrl?: string };
+  resolveMemberName?: (userId: string) => string;
   onOpenProfile?: (userId: string) => void;
-  onReactEmoji?: (emoji: string) => void;
   onOpenTicket?: (ticketNumber: string) => void;
+  onStartCall?: (type: "audio" | "video") => void;
+  callActive?: boolean;
+  onEditMessage?: (messageId: string, newContent: string) => void;
+  onDeleteMessage?: (messageId: string, deleteForEveryone: boolean) => void;
+  onReactMessage?: (messageId: string, emoji: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(msg.content || "");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [reactionPickerAnchor, setReactionPickerAnchor] = useState<HTMLElement | null>(null);
+
   const isMe = msg.senderId?.toLowerCase() === userId?.toLowerCase();
   const isDecryptionError = msg.content === "[Unable to decrypt]";
   const isSystemJoinMessage = msg.content?.toLowerCase().includes("joined #") || msg.content?.toLowerCase().includes("joined the workspace");
+  const isDeleted = msg.isDeleted;
 
   const copyContent = () => {
+    if (msg.type === "call") {
+      const { callType, status, duration } = parseCallInfo(msg.content);
+      const str = status === "missed" ? `Missed ${callType} call` : `${callType} call (${formatCallDuration(duration)})`;
+      navigator.clipboard.writeText(str);
+      return;
+    }
     if (msg.content) navigator.clipboard.writeText(msg.content);
   };
 
@@ -826,11 +1173,11 @@ function CleanMessageRow({
       sx={{
         display: "flex",
         alignItems: "flex-start",
-        gap: 1.5,
+        gap: { xs: 1, sm: 1.5 },
         width: "100%",
         py: 0.65,
-        px: 2,
-        mx: -2,
+        px: { xs: 1, sm: 2 },
+        mx: { xs: -1, sm: -2 },
         borderRadius: "6px",
         position: "relative",
         transition: "background-color 0.1s ease",
@@ -840,12 +1187,12 @@ function CleanMessageRow({
       }}
     >
       {/* Slack-style Floating Quick Action Toolbar on Hover */}
-      {hovered && (
+      {hovered && !isEditing && !isDeleted && (
         <Box
           sx={{
             position: "absolute",
             top: -14,
-            right: 16,
+            right: { xs: 4, sm: 16 },
             zIndex: 10,
             display: "flex",
             alignItems: "center",
@@ -859,12 +1206,13 @@ function CleanMessageRow({
             boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
           }}
         >
-          {QUICK_REACTIONS.slice(0, 5).map((emoji) => (
+          {QUICK_REACTIONS.slice(0, 5).map((emoji, idx) => (
             <IconButton
               key={emoji}
               size="small"
-              onClick={() => (onReactEmoji ? onReactEmoji(emoji) : copyContent())}
+              onClick={() => onReactMessage?.(msg.id, emoji)}
               sx={{
+                display: idx >= 3 ? { xs: "none", sm: "inline-flex" } : "inline-flex",
                 p: 0.35,
                 fontSize: "13px",
                 lineHeight: 1,
@@ -876,7 +1224,44 @@ function CleanMessageRow({
             </IconButton>
           ))}
 
+          <Tooltip title="Add reaction">
+            <IconButton
+              size="small"
+              onClick={(e) => setReactionPickerAnchor(e.currentTarget)}
+              sx={{ p: 0.35 }}
+            >
+              <AddReactionIcon sx={{ fontSize: 14, color: "text.secondary" }} />
+            </IconButton>
+          </Tooltip>
+
           <Divider orientation="vertical" flexItem sx={{ mx: 0.25, my: 0.5 }} />
+
+          {/* Edit (only text and isMe) */}
+          {isMe && msg.type === "text" && (
+            <Tooltip title="Edit message">
+              <IconButton
+                size="small"
+                onClick={() => {
+                  setEditText(msg.content || "");
+                  setIsEditing(true);
+                }}
+                sx={{ p: 0.35 }}
+              >
+                <EditIcon sx={{ fontSize: 14, color: "text.secondary" }} />
+              </IconButton>
+            </Tooltip>
+          )}
+
+          {/* Delete */}
+          <Tooltip title="Delete message">
+            <IconButton
+              size="small"
+              onClick={() => setDeleteDialogOpen(true)}
+              sx={{ p: 0.35 }}
+            >
+              <DeleteIcon sx={{ fontSize: 14, color: "error.main" }} />
+            </IconButton>
+          </Tooltip>
 
           <Tooltip title="Copy text">
             <IconButton size="small" onClick={copyContent} sx={{ p: 0.35 }}>
@@ -885,6 +1270,75 @@ function CleanMessageRow({
           </Tooltip>
         </Box>
       )}
+
+      {/* Reaction Picker Popover */}
+      <Popover
+        open={Boolean(reactionPickerAnchor)}
+        anchorEl={reactionPickerAnchor}
+        onClose={() => setReactionPickerAnchor(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+        transformOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <EmojiPicker
+          onSelectEmoji={(emoji: string) => {
+            onReactMessage?.(msg.id, emoji);
+            setReactionPickerAnchor(null);
+          }}
+          onClose={() => setReactionPickerAnchor(null)}
+        />
+      </Popover>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        slotProps={{
+          paper: {
+            sx: { borderRadius: 3, p: 1, maxWidth: 380, width: "100%" },
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 800, fontSize: "16px", pb: 0.5 }}>
+          Delete message?
+        </DialogTitle>
+        <DialogContent sx={{ color: "text.secondary", fontSize: "13.5px", pt: 0.5 }}>
+          {isMe
+            ? "Would you like to delete this message just for you, or for everyone in this chat?"
+            : "This message will be removed from your chat history."}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, display: "flex", flexDirection: "column", gap: 1, alignItems: "stretch" }}>
+          <Button
+            variant="outlined"
+            onClick={() => {
+              setDeleteDialogOpen(false);
+              onDeleteMessage?.(msg.id, false);
+            }}
+            sx={{ borderRadius: "8px", textTransform: "none", fontWeight: 700 }}
+          >
+            Delete for me
+          </Button>
+          {isMe && (
+            <Button
+              variant="contained"
+              color="error"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                onDeleteMessage?.(msg.id, true);
+              }}
+              sx={{ borderRadius: "8px", textTransform: "none", fontWeight: 700 }}
+            >
+              Delete for everyone
+            </Button>
+          )}
+          <Button
+            variant="text"
+            onClick={() => setDeleteDialogOpen(false)}
+            sx={{ borderRadius: "8px", textTransform: "none", color: "text.secondary" }}
+          >
+            Cancel
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Avatar (Square with rounded corners - Slack standard) */}
       <Tooltip title={`View ${sender.name}'s profile`}>
@@ -945,6 +1399,21 @@ function CleanMessageRow({
             {fmtTime(msg.sentAt)}
           </Typography>
 
+          {msg.isEdited && !isDeleted && (
+            <Typography
+              component="span"
+              variant="caption"
+              sx={{
+                fontSize: "11px",
+                color: "text.secondary",
+                fontStyle: "italic",
+                opacity: 0.8,
+              }}
+            >
+              (edited)
+            </Typography>
+          )}
+
           {isMe && (
             <Box sx={{ display: "inline-flex", alignItems: "center", opacity: 0.75, ml: -0.25 }}>
               {msg._temp ? (
@@ -958,27 +1427,165 @@ function CleanMessageRow({
           )}
         </Box>
 
-        {/* Message Text Content */}
-        {msg.content && (
+        {/* Message Content */}
+        {isDeleted ? (
           <Box
             sx={{
-              color: isDecryptionError ? "error.main" : "text.primary",
-              fontSize: "14.5px",
-              lineHeight: 1.5,
-              wordBreak: "break-word",
-              fontStyle: isSystemJoinMessage ? "italic" : "normal",
-              opacity: isSystemJoinMessage ? 0.8 : 1,
-              textAlign: "left",
+              display: "flex",
+              alignItems: "center",
+              gap: 0.75,
+              color: "text.secondary",
+              fontStyle: "italic",
+              fontSize: "13.5px",
+              py: 0.25,
             }}
           >
-            <FormattedMessage content={msg.content} onOpenTicket={onOpenTicket} />
+            <BlockIcon sx={{ fontSize: 15, opacity: 0.6 }} />
+            <Typography variant="body2" sx={{ fontStyle: "italic", fontSize: "13.5px", color: "text.secondary" }}>
+              This message was deleted
+            </Typography>
           </Box>
+        ) : isEditing ? (
+          /* Inline Editor */
+          <Box sx={{ mt: 0.5, width: "100%", maxWidth: 640 }}>
+            <TextField
+              fullWidth
+              multiline
+              size="small"
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  if (editText.trim() && editText.trim() !== msg.content) {
+                    onEditMessage?.(msg.id, editText.trim());
+                  }
+                  setIsEditing(false);
+                } else if (e.key === "Escape") {
+                  setIsEditing(false);
+                }
+              }}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: "8px",
+                  bgcolor: "background.paper",
+                  fontSize: "14px",
+                },
+              }}
+            />
+            <Box sx={{ display: "flex", gap: 1, mt: 0.75, alignItems: "center" }}>
+              <Button
+                size="small"
+                variant="contained"
+                onClick={() => {
+                  if (editText.trim() && editText.trim() !== msg.content) {
+                    onEditMessage?.(msg.id, editText.trim());
+                  }
+                  setIsEditing(false);
+                }}
+                sx={{ borderRadius: "6px", textTransform: "none", fontWeight: 700, fontSize: "12px", py: 0.25, px: 1.5 }}
+              >
+                Save
+              </Button>
+              <Button
+                size="small"
+                variant="text"
+                onClick={() => setIsEditing(false)}
+                sx={{ borderRadius: "6px", textTransform: "none", fontSize: "12px", color: "text.secondary", py: 0.25, px: 1 }}
+              >
+                Cancel
+              </Button>
+              <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "11px", ml: 1 }}>
+                escape to cancel • enter to save
+              </Typography>
+            </Box>
+          </Box>
+        ) : msg.type === "call" ? (
+          <CallMessageCard
+            msg={msg}
+            isMe={isMe}
+            onStartCall={onStartCall}
+            callActive={callActive}
+          />
+        ) : (
+          <>
+            {msg.content && (
+              <Box
+                sx={{
+                  color: isDecryptionError ? "error.main" : "text.primary",
+                  fontSize: "14.5px",
+                  lineHeight: 1.5,
+                  wordBreak: "break-word",
+                  fontStyle: isSystemJoinMessage ? "italic" : "normal",
+                  opacity: isSystemJoinMessage ? 0.8 : 1,
+                  textAlign: "left",
+                }}
+              >
+                <FormattedMessage content={msg.content} onOpenTicket={onOpenTicket} />
+              </Box>
+            )}
+
+            {/* File Attachment */}
+            {msg.fileUrl && (
+              <Box sx={{ mt: 0.5 }}>
+                <FileAttachment msg={msg} />
+              </Box>
+            )}
+          </>
         )}
 
-        {/* File Attachment */}
-        {msg.fileUrl && (
-          <Box sx={{ mt: 0.5 }}>
-            <FileAttachment msg={msg} />
+        {/* Reactions Chips Bar */}
+        {!isDeleted && msg.reactions && Object.keys(msg.reactions).length > 0 && (
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
+            {Object.entries(msg.reactions).map(([emoji, userIds]) => {
+              if (!userIds || userIds.length === 0) return null;
+              const userReacted = userIds.includes(userId);
+              const tooltipNames = userIds
+                .map((uid) => (uid === userId ? "You" : (resolveMemberName ? resolveMemberName(uid) : "Someone")))
+                .join(", ");
+
+              return (
+                <Tooltip key={emoji} title={`${tooltipNames} reacted with ${emoji}`}>
+                  <Chip
+                    size="small"
+                    label={`${emoji} ${userIds.length}`}
+                    onClick={() => onReactMessage?.(msg.id, emoji)}
+                    sx={{
+                      height: 24,
+                      fontSize: "12px",
+                      fontWeight: userReacted ? 700 : 500,
+                      cursor: "pointer",
+                      bgcolor: userReacted ? "action.selected" : "background.paper",
+                      border: "1px solid",
+                      borderColor: userReacted ? "primary.main" : "divider",
+                      borderRadius: "12px",
+                      "&:hover": {
+                        bgcolor: userReacted ? "action.selected" : "action.hover",
+                        borderColor: "primary.main",
+                      },
+                    }}
+                  />
+                </Tooltip>
+              );
+            })}
+
+            <Tooltip title="Add reaction">
+              <IconButton
+                size="small"
+                onClick={(e) => setReactionPickerAnchor(e.currentTarget)}
+                sx={{
+                  width: 24,
+                  height: 24,
+                  p: 0,
+                  borderRadius: "12px",
+                  border: "1px dashed",
+                  borderColor: "divider",
+                  "&:hover": { borderColor: "primary.main", bgcolor: "action.hover" },
+                }}
+              >
+                <AddReactionIcon sx={{ fontSize: 13, color: "text.secondary" }} />
+              </IconButton>
+            </Tooltip>
           </Box>
         )}
       </Box>

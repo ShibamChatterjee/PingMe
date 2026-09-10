@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("PingMe.Core")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+33fe69995c7447ea0dba9ef1066fcc5c807274ce")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b11b0310c5a011b9b67add246d9ea9fc933688f3")]
 [assembly: System.Reflection.AssemblyProductAttribute("PingMe.Core")]
 [assembly: System.Reflection.AssemblyTitleAttribute("PingMe.Core")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

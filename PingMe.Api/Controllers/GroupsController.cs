@@ -60,13 +60,13 @@ public class GroupsController : ControllerBase
 
     /// <summary>Get message history for a group.</summary>
     [HttpGet("{groupId}/messages")]
-    public async Task<IActionResult> GetMessages(string orgId, string groupId, [FromQuery] int limit = 50)
+    public async Task<IActionResult> GetMessages(string orgId, string groupId, [FromQuery] int limit = 50, [FromQuery] DateTime? before = null)
     {
         // Verify group membership
         var group = await _groupService.GetByIdAsync(groupId, orgId, UserId);
         if (group is null) return NotFound("Group not found or access denied.");
 
-        var messages = await _messageService.GetHistoryAsync(orgId, groupId, UserId, limit);
+        var messages = await _messageService.GetHistoryAsync(orgId, groupId, UserId, limit, before);
         return Ok(messages);
     }
 

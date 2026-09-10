@@ -96,43 +96,169 @@ public class MessageService : IMessageService
         return message;
     }
 
-    public async Task<List<Message>> GetHistoryAsync(string orgId, string chatId, string requesterId, int limit = 50)
+    public async Task<List<Message>> GetHistoryAsync(string orgId, string chatId, string requesterId, int limit = 50, DateTime? before = null)
     {
         // Security: verify org membership
         if (!await _orgMemberRepo.IsMemberAsync(orgId, requesterId))
             throw new UnauthorizedAccessException("Access denied.");
 
-        var key = CacheKey(orgId, chatId);
+        limit = Math.Clamp(limit, 1, 200);
 
-        // 1. Try Redis cache
-        var cached = await _redis.SortedSetRangeByRankAsync(key, 0, limit - 1, Order.Descending);
+        // Fetch from MongoDB — always filter by orgId for security
+        var filterBuilder = Builders<Message>.Filter;
+        var filter = filterBuilder.Eq(m => m.ChatId, chatId) & filterBuilder.Eq(m => m.OrganizationId, orgId);
 
-        if (cached.Length > 0)
+        // Filter out messages deleted for this user
+        filter &= !filterBuilder.AnyEq(m => m.DeletedForUserIds, requesterId);
+
+        if (before.HasValue)
         {
-            return cached
-                .Select(c => JsonSerializer.Deserialize<Message>(c.ToString())!)
-                .OrderBy(m => m.SentAt)
-                .ToList();
+            filter &= filterBuilder.Lt(m => m.SentAt, before.Value);
         }
 
-        // 2. MongoDB fallback — always filter by orgId for security
         var messages = await _messages
-            .Find(m => m.ChatId == chatId && m.OrganizationId == orgId)
+            .Find(filter)
             .SortByDescending(m => m.SentAt)
             .Limit(limit)
             .ToListAsync();
 
-        if (messages.Count > 0)
-        {
-            var batch = messages.Select(m => new SortedSetEntry(
-                JsonSerializer.Serialize(m),
-                new DateTimeOffset(m.SentAt).ToUnixTimeMilliseconds()
-            )).ToArray();
+        return messages.OrderBy(m => m.SentAt).ToList();
+    }
 
-            await _redis.SortedSetAddAsync(key, batch);
+    public async Task<Message?> EditAsync(
+        string orgId,
+        string chatId,
+        string messageId,
+        string senderId,
+        string ciphertext,
+        string nonce,
+        string? selfCiphertext = null,
+        string? selfNonce = null)
+    {
+        if (!await _orgMemberRepo.IsMemberAsync(orgId, senderId))
+            throw new UnauthorizedAccessException("Access denied.");
+
+        var message = await _messages.Find(m => m.Id == messageId && m.OrganizationId == orgId && m.ChatId == chatId).FirstOrDefaultAsync();
+        if (message is null) return null;
+
+        if (!string.Equals(message.SenderId, senderId, StringComparison.OrdinalIgnoreCase))
+            throw new UnauthorizedAccessException("You can only edit your own messages.");
+
+        if (message.IsDeleted)
+            throw new InvalidOperationException("Cannot edit a deleted message.");
+
+        var now = DateTime.UtcNow;
+        var update = Builders<Message>.Update
+            .Set(m => m.Ciphertext, ciphertext)
+            .Set(m => m.Nonce, nonce)
+            .Set(m => m.SelfCiphertext, selfCiphertext)
+            .Set(m => m.SelfNonce, selfNonce)
+            .Set(m => m.IsEdited, true)
+            .Set(m => m.EditedAt, now);
+
+        await _messages.UpdateOneAsync(m => m.Id == messageId, update);
+
+        message.Ciphertext = ciphertext;
+        message.Nonce = nonce;
+        message.SelfCiphertext = selfCiphertext;
+        message.SelfNonce = selfNonce;
+        message.IsEdited = true;
+        message.EditedAt = now;
+
+        return message;
+    }
+
+    public async Task<Message?> DeleteAsync(
+        string orgId,
+        string chatId,
+        string messageId,
+        string requesterId,
+        bool deleteForEveryone)
+    {
+        if (!await _orgMemberRepo.IsMemberAsync(orgId, requesterId))
+            throw new UnauthorizedAccessException("Access denied.");
+
+        var message = await _messages.Find(m => m.Id == messageId && m.OrganizationId == orgId && m.ChatId == chatId).FirstOrDefaultAsync();
+        if (message is null) return null;
+
+        if (deleteForEveryone)
+        {
+            if (!string.Equals(message.SenderId, requesterId, StringComparison.OrdinalIgnoreCase))
+                throw new UnauthorizedAccessException("You can only delete your own messages for everyone.");
+
+            var update = Builders<Message>.Update
+                .Set(m => m.IsDeleted, true)
+                .Set(m => m.Ciphertext, "")
+                .Set(m => m.Nonce, "")
+                .Set(m => m.SelfCiphertext, null)
+                .Set(m => m.SelfNonce, null)
+                .Set(m => m.FileUrl, null)
+                .Set(m => m.FileName, null)
+                .Set(m => m.FileType, null)
+                .Set(m => m.FileSize, null);
+
+            await _messages.UpdateOneAsync(m => m.Id == messageId, update);
+
+            message.IsDeleted = true;
+            message.Ciphertext = "";
+            message.Nonce = "";
+            message.SelfCiphertext = null;
+            message.SelfNonce = null;
+            message.FileUrl = null;
+            message.FileName = null;
+        }
+        else
+        {
+            // Delete for me
+            var update = Builders<Message>.Update.AddToSet(m => m.DeletedForUserIds, requesterId);
+            await _messages.UpdateOneAsync(m => m.Id == messageId, update);
+            if (!message.DeletedForUserIds.Contains(requesterId))
+                message.DeletedForUserIds.Add(requesterId);
         }
 
-        return messages.OrderBy(m => m.SentAt).ToList();
+        return message;
+    }
+
+    public async Task<Dictionary<string, List<string>>> ReactAsync(
+        string orgId,
+        string chatId,
+        string messageId,
+        string requesterId,
+        string emoji)
+    {
+        if (!await _orgMemberRepo.IsMemberAsync(orgId, requesterId))
+            throw new UnauthorizedAccessException("Access denied.");
+
+        var message = await _messages.Find(m => m.Id == messageId && m.OrganizationId == orgId && m.ChatId == chatId).FirstOrDefaultAsync();
+        if (message is null) return new Dictionary<string, List<string>>();
+
+        if (message.Reactions == null)
+            message.Reactions = new Dictionary<string, List<string>>();
+
+        if (message.Reactions.TryGetValue(emoji, out var userList))
+        {
+            if (userList.Contains(requesterId))
+            {
+                userList.Remove(requesterId);
+                if (userList.Count == 0)
+                {
+                    message.Reactions.Remove(emoji);
+                }
+            }
+            else
+            {
+                userList.Add(requesterId);
+            }
+        }
+        else
+        {
+            message.Reactions[emoji] = new List<string> { requesterId };
+        }
+
+        var update = Builders<Message>.Update.Set(m => m.Reactions, message.Reactions);
+        await _messages.UpdateOneAsync(m => m.Id == messageId, update);
+
+        return message.Reactions;
     }
 
     private async Task ValidateSenderAccess(string orgId, string chatId, string chatType, string senderId)
@@ -148,7 +274,8 @@ public class MessageService : IMessageService
         else // dm
         {
             var chat = await _directChatRepo.GetByIdAsync(chatId, orgId);
-            if (chat is null || (chat.User1Id != senderId && chat.User2Id != senderId))
+            if (chat is null || (!string.Equals(chat.User1Id, senderId, StringComparison.OrdinalIgnoreCase) &&
+                                 !string.Equals(chat.User2Id, senderId, StringComparison.OrdinalIgnoreCase)))
                 throw new UnauthorizedAccessException("Sender is not a participant in this chat.");
         }
     }

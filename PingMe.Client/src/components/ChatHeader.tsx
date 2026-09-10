@@ -13,6 +13,7 @@ import {
 import CallOutlinedIcon from "@mui/icons-material/CallOutlined";
 import VideocamOutlinedIcon from "@mui/icons-material/VideocamOutlined";
 import TagIcon from "@mui/icons-material/Tag";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 interface Props {
   activeChat: ActiveChat;
@@ -23,6 +24,7 @@ interface Props {
   onOpenProfile?: (userId: string) => void;
   onStartCall?: (type: "audio" | "video") => void;
   callActive?: boolean;
+  onBack?: () => void;
   // kept for API compatibility — not rendered in header, screen share is in-call only
   onToggleMemberPanel?: () => void;
   onStartScreenShare?: () => void;
@@ -37,6 +39,7 @@ export function ChatHeader({
   onOpenProfile,
   onStartCall,
   callActive = false,
+  onBack,
 }: Props) {
   if (!activeChat) return null;
 
@@ -78,7 +81,7 @@ export function ChatHeader({
       sx={{
         height: 60,
         minHeight: 60,
-        px: 3,
+        px: { xs: 1.5, sm: 3 },
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -88,7 +91,26 @@ export function ChatHeader({
       }}
     >
       {/* Left side info */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 1, sm: 1.5 }, minWidth: 0 }}>
+        {onBack && (
+          <Tooltip title="Back to channels">
+            <IconButton
+              size="small"
+              onClick={onBack}
+              sx={{
+                display: { xs: "inline-flex", md: "none" },
+                color: "text.secondary",
+                p: 0.5,
+                mr: 0.25,
+                "&:hover": { color: "primary.main" },
+              }}
+              aria-label="Back to channels"
+            >
+              <ArrowBackIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+          </Tooltip>
+        )}
+
         {isGroup ? (
           <Box
             sx={{

@@ -26,6 +26,10 @@ public class Message
     public string Type { get; set; } = "text";
     public string Status { get; set; } = "sent";
     public bool IsDeleted { get; set; }
+    public List<string> DeletedForUserIds { get; set; } = new();
+    public bool IsEdited { get; set; }
+    public DateTime? EditedAt { get; set; }
+    public Dictionary<string, List<string>> Reactions { get; set; } = new();
     public string? FileUrl { get; set; }
     public string? FileName { get; set; }
     public string? FileType { get; set; }

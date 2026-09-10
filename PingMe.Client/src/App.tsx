@@ -34,7 +34,7 @@ import { InvitationAcceptModal } from "./components/InvitationAcceptModal";
 import { Toast } from "./components/Toast";
 import { clearKeyCache } from "./lib/keyBundleCache";
 import { useTickets } from "./lib/useTickets";
-import { useCall } from "./lib/useCall";
+import { useCall, type CallEndRecord } from "./lib/useCall";
 import { ThemeProvider, CssBaseline, Box, Typography, Button, Paper, Chip } from "@mui/material";
 import { getMuiTheme, applyThemeVariables, type ThemeKey, THEMES } from "./theme";
 
@@ -45,7 +45,7 @@ export default function App() {
   const [myPrivateKey, setMyPrivateKey] = useState<string | null>(() => loadStoredPrivateKey());
   const [toast, setToast] = useState<string | null>(null);
   const [orgModal, setOrgModal] = useState<OrgModal>(null);
-  const [activeView, setActiveView] = useState<NavView>("overview");
+  const [activeView, setActiveView] = useState<NavView>(() => typeof window !== "undefined" && window.innerWidth < 900 ? "channels" : "overview");
   const [globalSearch, setGlobalSearch] = useState("");
   const [previewInviteToken, setPreviewInviteToken] = useState<string | null>(null);
   const [selectedProfileMember, setSelectedProfileMember] = useState<OrgMember | null>(null);
@@ -125,6 +125,13 @@ export default function App() {
     [activeMembers],
   );
 
+  const handleCallEnded = useCallback(
+    (record: CallEndRecord) => {
+      chat.sendCallRecord(record.chatId, record.callType, record.status, record.duration);
+    },
+    [chat.sendCallRecord],
+  );
+
   // WebRTC call hook — uses the same SignalR hub connection via chat.hub
   const {
     callState,
@@ -138,7 +145,7 @@ export default function App() {
     toggleCamera,
     startScreenShare,
     stopScreenShare,
-  } = useCall(chat.hub, auth?.userId ?? null, getMember, auth?.token ?? null);
+  } = useCall(chat.hub, auth?.userId ?? null, getMember, auth?.token ?? null, handleCallEnded);
 
   const handleAuth = (data: AuthResult, privateKey: string | null, email: string) => {
     storeAuth(data);
@@ -289,6 +296,7 @@ export default function App() {
                 onLogout={handleLogout}
                 searchQuery={globalSearch}
                 onSearchChange={setGlobalSearch}
+                onBackToChannels={() => setActiveView("channels")}
                 onStartDm={async (uid) => {
                   await chat.openOrCreateDm(uid);
                   setActiveView("chat");
@@ -326,32 +334,34 @@ export default function App() {
               {/* Main Content Workspace Split */}
               <Box sx={{ display: "flex", flexGrow: 1, minHeight: 0, overflow: "hidden" }}>
                 {/* Left Navigation: Channels, DMs, Directory */}
-                <OrgLeftNav
-                  org={activeOrg}
-                  activeView={activeView}
-                  onSelectView={setActiveView}
-                  directChats={chat.directChats}
-                  activeChat={chat.activeChat}
-                  unreadCounts={chat.unreadCounts}
-                  onlineUsers={chat.onlineUsers}
-                  myUserId={auth.userId}
-                  myRole={currentRole}
-                  ticketSystemEnabled={activeOrg.ticketSystemEnabled}
-                  onOpenChat={(targetChat) => {
-                    chat.openChat(targetChat);
-                    setActiveView("chat");
-                  }}
-                  onStartDm={async (targetUserId) => {
-                    await chat.openOrCreateDm(targetUserId);
-                    setActiveView("chat");
-                  }}
-                  onCreateGroup={() => setActiveView("create_channel")}
-                  onOpenSettings={() => setActiveView("settings")}
-                />
+                <Box sx={{ display: { xs: activeView === "channels" ? "flex" : "none", md: "flex" }, height: "100%", width: { xs: "100%", md: "auto" }, minWidth: { xs: "100%", md: "auto" } }}>
+                  <OrgLeftNav
+                    org={activeOrg}
+                    activeView={activeView}
+                    onSelectView={setActiveView}
+                    directChats={chat.directChats}
+                    activeChat={chat.activeChat}
+                    unreadCounts={chat.unreadCounts}
+                    onlineUsers={chat.onlineUsers}
+                    myUserId={auth.userId}
+                    myRole={currentRole}
+                    ticketSystemEnabled={activeOrg.ticketSystemEnabled}
+                    onOpenChat={(targetChat) => {
+                      chat.openChat(targetChat);
+                      setActiveView("chat");
+                    }}
+                    onStartDm={async (targetUserId) => {
+                      await chat.openOrCreateDm(targetUserId);
+                      setActiveView("chat");
+                    }}
+                    onCreateGroup={() => setActiveView("create_channel")}
+                    onOpenSettings={() => setActiveView("settings")}
+                  />
+                </Box>
 
                 {/* Primary Central Content Area */}
-                <Box sx={{ display: "flex", flexGrow: 1, minWidth: 0, height: "100%", overflow: "hidden" }}>
-              {activeView === "overview" && activeOrgDto && (
+                <Box sx={{ display: { xs: activeView === "channels" ? "none" : "flex", md: "flex" }, flexGrow: 1, minWidth: 0, height: "100%", overflow: "hidden" }}>
+              {(activeView === "overview" || activeView === "channels") && activeOrgDto && (
                 <OverviewView
                   org={activeOrgDto}
                   members={chatMembers}
@@ -407,6 +417,9 @@ export default function App() {
                   onSend={chat.sendMessage}
                   onSendFile={chat.sendFile}
                   onTyping={chat.sendTyping}
+                  onEditMessage={chat.editMessage}
+                  onDeleteMessage={chat.deleteMessage}
+                  onReactMessage={chat.reactToMessage}
                   onOpenProfile={(uid) => {
                     const m = activeOrg.members.find((x) => x.userId.toLowerCase() === uid.toLowerCase());
                     if (m) setSelectedProfileMember(m);
@@ -434,6 +447,10 @@ export default function App() {
                       setToast(`Ticket #${cleanNum} not found.`);
                     }
                   }}
+                  hasMoreOlder={chat.hasMoreOlder}
+                  loadingOlder={chat.loadingOlder}
+                  onLoadOlder={chat.loadOlderHistory}
+                  onBack={() => setActiveView("channels")}
                 />
               )}
 

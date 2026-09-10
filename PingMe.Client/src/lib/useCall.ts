@@ -33,6 +33,14 @@ export interface CallState {
   isScreenSharing: boolean;
 }
 
+export interface CallEndRecord {
+  chatId: string;
+  callType: CallType;
+  status: "completed" | "missed" | "declined" | "busy";
+  duration: number;
+  isCaller: boolean;
+}
+
 // ── STUN fallback (used when TURN credentials cannot be fetched) ──────────────
 const STUN_ONLY_CONFIG: RTCConfiguration = {
   iceServers: [
@@ -68,9 +76,13 @@ export function useCall(
   myUserId: string | null,
   getMember: (userId: string) => { username: string; avatarUrl?: string } | undefined,
   token: string | null = null,
+  onCallEnded?: (record: CallEndRecord) => void,
 ) {
   const tokenRef = useRef<string | null>(token);
   tokenRef.current = token;
+  const onCallEndedRef = useRef(onCallEnded);
+  onCallEndedRef.current = onCallEnded;
+
   const [callState, setCallState] = useState<CallState>({
     status: "idle",
     callType: null,
@@ -91,6 +103,11 @@ export function useCall(
   const screenStreamRef = useRef<MediaStream | null>(null);
   const remoteUserIdRef = useRef<string | null>(null);
   const chatIdRef = useRef<string | null>(null);
+  const currentChatIdRef = useRef<string | null>(null);
+  const isCallerRef = useRef<boolean>(false);
+  const callTypeRef = useRef<CallType>("audio");
+  const callStartTimeRef = useRef<number | null>(null);
+  const callEndedFiredRef = useRef<boolean>(false);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const callStateRef = useRef(callState);
   callStateRef.current = callState;
@@ -187,7 +204,39 @@ export function useCall(
     return stream;
   }, []);
 
+  const finalizeCall = useCallback((overrideStatus?: "declined" | "busy") => {
+    if (callEndedFiredRef.current) return;
+    const targetChatId = currentChatIdRef.current || chatIdRef.current;
+    const wasCaller = isCallerRef.current;
+    const currentStatus = callStateRef.current.status;
+    const type = callTypeRef.current || callStateRef.current.callType || "audio";
+
+    if (targetChatId && wasCaller) {
+      callEndedFiredRef.current = true;
+      let finalStatus: "completed" | "missed" | "declined" | "busy" = overrideStatus || "completed";
+      let duration = 0;
+
+      if (overrideStatus) {
+        finalStatus = overrideStatus;
+      } else if (currentStatus === "in-call" && callStartTimeRef.current) {
+        finalStatus = "completed";
+        duration = Math.max(1, Math.round((Date.now() - callStartTimeRef.current) / 1000));
+      } else {
+        finalStatus = "missed";
+      }
+
+      onCallEndedRef.current?.({
+        chatId: targetChatId,
+        callType: type,
+        status: finalStatus,
+        duration,
+        isCaller: true,
+      });
+    }
+  }, []);
+
   const cleanupCall = useCallback((notifyRemote: boolean = true) => {
+    finalizeCall();
     if (notifyRemote && hubRef.current && remoteUserIdRef.current && chatIdRef.current) {
       hubRef.current.invokeCall("EndCall", remoteUserIdRef.current, chatIdRef.current);
     }
@@ -200,19 +249,28 @@ export function useCall(
     pendingCandidatesRef.current = [];
     remoteUserIdRef.current = null;
     chatIdRef.current = null;
+    currentChatIdRef.current = null;
+    callStartTimeRef.current = null;
+    isCallerRef.current = false;
+    callEndedFiredRef.current = false;
     setLocalStream(null);
     setRemoteStream(null);
     setCallState({
       status: "idle", callType: null, chatId: null, remote: null,
       incomingCall: null, isMicOn: true, isCameraOn: true, isScreenSharing: false,
     });
-  }, []);
+  }, [finalizeCall]);
 
   // ── Public API ────────────────────────────────────────────────────────────
 
   const startCall = useCallback(async (calleeUserId: string, chatId: string, type: CallType) => {
     if (!hubRef.current || !myUserId || callStateRef.current.status !== "idle") return;
     pendingCandidatesRef.current = [];
+    isCallerRef.current = true;
+    callTypeRef.current = type;
+    currentChatIdRef.current = chatId;
+    callStartTimeRef.current = null;
+    callEndedFiredRef.current = false;
     const member = getMember(calleeUserId);
     remoteUserIdRef.current = calleeUserId;
     chatIdRef.current = chatId;
@@ -239,6 +297,11 @@ export function useCall(
   const acceptCall = useCallback(async () => {
     if (!hubRef.current || !callState.incomingCall) return;
     const { callerId, chatId, callType, sdpOffer } = callState.incomingCall;
+    isCallerRef.current = false;
+    callTypeRef.current = callType;
+    currentChatIdRef.current = chatId;
+    callStartTimeRef.current = Date.now();
+    callEndedFiredRef.current = false;
     remoteUserIdRef.current = callerId;
     chatIdRef.current = chatId;
     try {
@@ -350,6 +413,7 @@ export function useCall(
         console.log("[WebRTC] Callee answered, setting remote description");
         await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(payload.sdpAnswer)));
         await drainPendingCandidates(pc);
+        callStartTimeRef.current = Date.now();
         updateState({ status: "in-call" });
       } catch (err) { console.error("Failed to set remote description:", err); }
     });
@@ -372,12 +436,20 @@ export function useCall(
       }
     });
 
-    const offDeclined = hub.onCall("CallDeclined", () => { cleanupCall(false); });
-    const offEnded = hub.onCall("CallEnded", () => { cleanupCall(false); });
-    const offBusy = hub.onCall("CallBusy", () => { cleanupCall(false); });
+    const offDeclined = hub.onCall("CallDeclined", () => {
+      finalizeCall("declined");
+      cleanupCall(false);
+    });
+    const offEnded = hub.onCall("CallEnded", () => {
+      cleanupCall(false);
+    });
+    const offBusy = hub.onCall("CallBusy", () => {
+      finalizeCall("busy");
+      cleanupCall(false);
+    });
 
     return () => { offIncoming(); offAnswered(); offIce(); offDeclined(); offEnded(); offBusy(); };
-  }, [hub, getMember, updateState, cleanupCall, drainPendingCandidates]);
+  }, [hub, getMember, updateState, cleanupCall, drainPendingCandidates, finalizeCall]);
 
   useEffect(() => {
     return () => {

@@ -66,17 +66,26 @@ public class DirectChatService : IDirectChatService
     public async Task<DirectChatDto?> GetByIdAsync(string chatId, string orgId, string userId)
     {
         var chat = await _chatRepo.GetByIdAsync(chatId, orgId);
+        if (chat is null)
+        {
+            // If chatId might be the target user's ID
+            chat = await _chatRepo.FindAsync(orgId, userId, chatId);
+        }
         if (chat is null) return null;
 
         // Only participants can access
-        if (chat.User1Id != userId && chat.User2Id != userId) return null;
+        if (!string.Equals(chat.User1Id, userId, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(chat.User2Id, userId, StringComparison.OrdinalIgnoreCase))
+            return null;
 
         return await ToDtoAsync(chat, userId);
     }
 
     private async Task<DirectChatDto> ToDtoAsync(DirectChat chat, string myUserId)
     {
-        var otherUserId = chat.User1Id == myUserId ? chat.User2Id : chat.User1Id;
+        var otherUserId = string.Equals(chat.User1Id, myUserId, StringComparison.OrdinalIgnoreCase)
+            ? chat.User2Id
+            : chat.User1Id;
         var otherUser = await _userRepo.GetByIdAsync(otherUserId);
 
         return new DirectChatDto

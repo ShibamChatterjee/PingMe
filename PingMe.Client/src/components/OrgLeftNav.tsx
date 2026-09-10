@@ -29,6 +29,7 @@ import { canAccessGroup, getCanonicalRole, hasPermission } from "../lib/permissi
 import { Avatar as CustomAvatar } from "./Avatar";
 
 export type NavView =
+  | "channels"
   | "overview"
   | "chat"
   | "members"
@@ -114,13 +115,13 @@ export function OrgLeftNav({
     <Box
       component="nav"
       sx={{
-        width: 250,
-        minWidth: 250,
+        width: { xs: "100%", md: 250 },
+        minWidth: { xs: "100%", md: 250 },
         height: "100%",
         display: "flex",
         flexDirection: "column",
         bgcolor: "var(--theme-surface)",
-        borderRight: "1px solid",
+        borderRight: { xs: "none", md: "1px solid" },
         borderColor: "divider",
         userSelect: "none",
       }}

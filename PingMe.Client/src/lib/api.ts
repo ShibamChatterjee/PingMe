@@ -86,8 +86,13 @@ export interface ChatMessage {
   selfCiphertext?: string;
   selfNonce?: string;
   content?: string;
-  type: "text" | "image" | "file" | "audio" | "video" | "pdf";
+  type: "text" | "image" | "file" | "audio" | "video" | "pdf" | "call";
   status: string;
+  isDeleted?: boolean;
+  deletedForUserIds?: string[];
+  isEdited?: boolean;
+  editedAt?: string;
+  reactions?: Record<string, string[]>;
   fileUrl?: string;
   fileName?: string;
   fileType?: string;
@@ -642,8 +647,8 @@ export const api = {
     list: (token: string, orgId: string) =>
       apiFetch<DirectChat[]>(`/organizations/${orgId}/direct-chats`, {}, token),
 
-    loadHistory: (token: string, orgId: string, chatId: string, limit = 50) =>
-      apiFetch<ChatMessage[]>(`/organizations/${orgId}/direct-chats/${chatId}/messages?limit=${limit}`, {}, token),
+    loadHistory: (token: string, orgId: string, chatId: string, limit = 50, before?: string) =>
+      apiFetch<ChatMessage[]>(`/organizations/${orgId}/direct-chats/${chatId}/messages?limit=${limit}${before ? `&before=${encodeURIComponent(before)}` : ""}`, {}, token),
   },
 
   // ── Groups ─────────────────────────────────────────────────────────────────
@@ -661,8 +666,8 @@ export const api = {
     getById: (token: string, orgId: string, groupId: string) =>
       apiFetch<Group>(`/organizations/${orgId}/groups/${groupId}`, {}, token),
 
-    loadHistory: (token: string, orgId: string, groupId: string, limit = 50) =>
-      apiFetch<ChatMessage[]>(`/organizations/${orgId}/groups/${groupId}/messages?limit=${limit}`, {}, token),
+    loadHistory: (token: string, orgId: string, groupId: string, limit = 50, before?: string) =>
+      apiFetch<ChatMessage[]>(`/organizations/${orgId}/groups/${groupId}/messages?limit=${limit}${before ? `&before=${encodeURIComponent(before)}` : ""}`, {}, token),
 
     addMember: (token: string, orgId: string, groupId: string, userId: string) =>
       apiFetch<void>(`/organizations/${orgId}/groups/${groupId}/members`, {

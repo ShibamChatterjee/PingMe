@@ -32,6 +32,7 @@ import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNone
 import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
 import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
+import MenuIcon from "@mui/icons-material/Menu";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import type { ThemeKey } from "../theme";
 import type { FullOrganization } from "../lib/orgStore";
@@ -62,6 +63,7 @@ interface Props {
   onOpenGroup?: (group: any) => void;
   onOpenMyProfile?: () => void;
   onMarkAllRead?: () => void;
+  onBackToChannels?: () => void;
 }
 
 export function OrgHeader({
@@ -69,6 +71,7 @@ export function OrgHeader({
   allOrgs,
   myUserId,
   myRole,
+  activeView,
   username,
   themeKey,
   unreadCounts = {},
@@ -83,6 +86,7 @@ export function OrgHeader({
   onOpenGroup,
   onOpenMyProfile,
   onMarkAllRead,
+  onBackToChannels,
 }: Props) {
   const [profileAnchor, setProfileAnchor] = useState<HTMLElement | null>(null);
   const [orgSwitchAnchor, setOrgSwitchAnchor] = useState<HTMLElement | null>(null);
@@ -151,7 +155,7 @@ export function OrgHeader({
       sx={{
         height: 56,
         minHeight: 56,
-        px: 2.5,
+        px: { xs: 1.25, sm: 2.5 },
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -162,7 +166,26 @@ export function OrgHeader({
       }}
     >
       {/* Left: Prominent Current Organization Title with Switcher */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 0.75, sm: 1.5 }, minWidth: 0 }}>
+        {onBackToChannels && activeView !== "channels" && (
+          <Tooltip title="View Channels & DMs">
+            <IconButton
+              size="small"
+              onClick={onBackToChannels}
+              sx={{
+                display: { xs: "inline-flex", md: "none" },
+                color: "text.secondary",
+                p: 0.75,
+                mr: 0.25,
+                "&:hover": { color: "primary.main" },
+              }}
+              aria-label="View channels"
+            >
+              <MenuIcon sx={{ fontSize: 22 }} />
+            </IconButton>
+          </Tooltip>
+        )}
+
         <ButtonBase
           onClick={(e) => setOrgSwitchAnchor(e.currentTarget)}
           sx={{
@@ -172,6 +195,7 @@ export function OrgHeader({
             px: 1.25,
             py: 0.5,
             borderRadius: "8px",
+            maxWidth: { xs: 180, sm: 260 },
             "&:hover": { bgcolor: "action.hover" },
           }}
         >

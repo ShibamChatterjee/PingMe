@@ -17,13 +17,10 @@ public class DirectChatRepository : IDirectChatRepository
 
     public async Task<DirectChat?> FindAsync(string orgId, string user1Id, string user2Id)
     {
-        // Always compare in sorted order so (A,B) == (B,A)
-        var (u1, u2) = SortedPair(user1Id, user2Id);
-
         return await _chats.Find(c =>
             c.OrganizationId == orgId &&
-            c.User1Id == u1 &&
-            c.User2Id == u2).FirstOrDefaultAsync();
+            ((c.User1Id == user1Id && c.User2Id == user2Id) ||
+             (c.User1Id == user2Id && c.User2Id == user1Id))).FirstOrDefaultAsync();
     }
 
     public async Task<DirectChat> CreateAsync(DirectChat chat)
